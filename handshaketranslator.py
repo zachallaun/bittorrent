@@ -83,7 +83,6 @@ class HandshakeTranslator(object):
             if self._rx_state == self._States.Length:
                 (length,) = struct.unpack('B',
                                           buffer(self._buffer[0:_LENGTH_LEN]))
-
                 self._rx_state = self._States.Protocol
                 self._bytes_needed = length
                 self._bytes_received = 0
@@ -95,25 +94,21 @@ class HandshakeTranslator(object):
                     self._bytes_needed = _REST_LEN
                     self._bytes_received = 0
                 else:
-                    if self._receiver:
-                        self._receiver.rx_non_handshake()
+                    self._receiver and self._receiver.rx_non_handshake()
             else:
                 (reserved, info_hash, peer_id) = struct.unpack('8s20s20s',
                                               buffer(self._buffer[0:_REST_LEN]))
-                if self._receiver:
-                    self._receiver.rx_handshake(reserved, info_hash, peer_id)
-
+                self._receiver and self._receiver.rx_handshake(reserved, info_hash, peer_id)
                 self._rx_state = self._States.Length
                 self._bytes_needed = _LENGTH_LEN
                 self._bytes_received = 0
 
     def connection_lost(self):
-        if self._receiver:
-            self._receiver.connection_lost()
+        self._receiver and self._receiver.connection_lost()
 
     def tx_handshake(self, reserved, info_hash, peer_id):
         if self._readerwriter:
-            self._readerwriter.tx_bytes(struct.pack('B19c', 19, 
+            self._readerwriter.tx_bytes(struct.pack('B19c', 19,
                                                *list('BitTorrent protocol')))
             self._readerwriter.tx_bytes(struct.pack('8B', *([0]*8)))
             self._readerwriter.tx_bytes(info_hash)
