@@ -166,51 +166,45 @@ class PeerProxy(object):
 
     # PeerWireTranslator callbacks
 
-    def rx_bitfield(self, bitfield):
+    def handle(self, message, *args):
+        simple_messages = {'have': self._client.peer_has,
+                           'request': self._client.peer_request,
+                           'piece': self._client.peer_sent_block,
+                           'cancel': self._client.peer_canceled,
+                           'bitfield': self._rx_bitfield}
+        other_messages = {'keep_alive': lambda: None,
+                          'choke': self._rx_choke,
+                          'unchoke': self._rx_unchoke,
+                          'interested': self._rx_interested,
+                          'not_interested': self._rx_not_interested}
+        if self._valid_rx_state():
+            if message in simple_messages:
+                simple_messages[message](*args)
+            elif message in other_messages:
+                other_messages[message]()
+
+    def _rx_bitfield(self, bitfield):
         if self._state == self._States.Bitfield_Allowed:
             self._state = self._States.Peer_to_Peer
             self._client.peer_bitfield(self, bitfield)
         else:
             self._drop_connection()
 
-    def rx_keep_alive(self):
-        pass
+    def _rx_choke(self):
+        self._peer_choked = True
+        self._client.peer_choked(self)
 
-    def rx_choke(self):
-        if self._valid_rx_state():
-            self._peer_choked = True
-            self._client.peer_choked(self)
+    def _rx_unchoke(self):
+        self._peer_choked = False
+        self._client.peer_unchoked(self)
 
-    def rx_unchoke(self):
-        if self._valid_rx_state():
-            self._peer_choked = False
-            self._client.peer_unchoked(self)
+    def _rx_interested(self):
+        self._peer_interested = True
+        self._client.peer_interested(self)
 
-    def rx_interested(self):
-        if self._valid_rx_state():
-            self._peer_interested = True
-            self._client.peer_interested(self)
-
-    def rx_not_interested(self):
-        if self._valid_rx_state():
-            self._peer_interested = False
-            self._client.peer_not_interested(self)
-
-    def rx_have(self, index):
-        if self._valid_rx_state():
-            self._client.peer_has(self, index)
-
-    def rx_request(self, index, begin, length):
-        if self._valid_rx_state():
-            self._client.peer_requests(self, index, begin, length)
-
-    def rx_piece(self, index, begin, buf):
-        if self._valid_rx_state():
-            self._client.peer_sent_block(self, index, begin, buf)
-
-    def rx_cancel(self, index, begin, length):
-        if self._valid_rx_state():
-            self._client.peer_canceled(self, index, begin, length)
+    def _rx_not_interested(self):
+        self._peer_interested = False
+        self._client.peer_not_interested(self)
 
     # Client calls
 
