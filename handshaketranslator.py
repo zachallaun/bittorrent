@@ -81,27 +81,36 @@ class HandshakeTranslator(object):
 
         if self._bytes_needed == 0:
             if self._rx_state == self._States.Length:
-                (length,) = struct.unpack('B',
-                                          buffer(self._buffer[0:_LENGTH_LEN]))
-                self._rx_state = self._States.Protocol
-                self._bytes_needed = length
-                self._bytes_received = 0
+                self._handle_length()
             elif self._rx_state == self._States.Protocol:
-                (pstr,) = struct.unpack('{}s'.format(self._bytes_received),
-                                 buffer(self._buffer[0:self._bytes_received]))
-                if pstr == 'BitTorrent protocol':
-                    self._rx_state = self._States.Rest
-                    self._bytes_needed = _REST_LEN
-                    self._bytes_received = 0
-                else:
-                    self._receiver and self._receiver.rx_non_handshake()
+                self._handle_protocol()
             else:
-                (reserved, info_hash, peer_id) = struct.unpack('8s20s20s',
-                                              buffer(self._buffer[0:_REST_LEN]))
-                self._receiver and self._receiver.rx_handshake(reserved, info_hash, peer_id)
-                self._rx_state = self._States.Length
-                self._bytes_needed = _LENGTH_LEN
-                self._bytes_received = 0
+                self._handle_rest()
+
+    def _handle_length(self):
+        (length,) = struct.unpack('B',
+                                  buffer(self._buffer[0:_LENGTH_LEN]))
+        self._rx_state = self._States.Protocol
+        self._bytes_needed = length
+        self._bytes_received = 0
+
+    def _handle_protocol(self):
+        (pstr,) = struct.unpack('{}s'.format(self._bytes_received),
+                         buffer(self._buffer[0:self._bytes_received]))
+        if pstr == 'BitTorrent protocol':
+            self._rx_state = self._States.Rest
+            self._bytes_needed = _REST_LEN
+            self._bytes_received = 0
+        else:
+            self._receiver and self._receiver.rx_non_handshake()
+
+    def _handle_rest(self):
+        (reserved, info_hash, peer_id) = struct.unpack('8s20s20s',
+                                      buffer(self._buffer[0:_REST_LEN]))
+        self._receiver and self._receiver.rx_handshake(reserved, info_hash, peer_id)
+        self._rx_state = self._States.Length
+        self._bytes_needed = _LENGTH_LEN
+        self._bytes_received = 0
 
     def connection_lost(self):
         self._receiver and self._receiver.connection_lost()
